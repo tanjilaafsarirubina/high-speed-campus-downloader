@@ -11,7 +11,7 @@
 - Tanjila Afsari Rubina (Student ID: 24241310)
 - Sandip Kumar Paul (Student ID: 24241311)
 
-**Course:** CSE449 — Parallel, Distributed & High-Performance Computing
+**Course:** CSE449 - Parallel, Distributed & High-Performance Computing
 
 ---
 
