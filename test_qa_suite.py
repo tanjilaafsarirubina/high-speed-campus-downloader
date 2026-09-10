@@ -1056,9 +1056,9 @@ class TestRobustnessAndEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     print("=" * 78)
-    print("⚡ High Speed Campus Downloader — Formal Verification & QA Suite (28 Tests)")
+    print("High Speed Campus Downloader - Formal Verification & QA Suite (28 Tests)")
     print("Authors: Tanjila Afsari Rubina (24241310) & Sandip Kumar Paul (24241311)")
-    print("Course:  CSE449 — Parallel, Distributed & High-Performance Computing")
+    print("Course:  CSE449 - Parallel, Distributed & High-Performance Computing")
     print("License: GNU General Public License v3.0 (GPLv3)")
     print("=" * 78)
     unittest.main(verbosity=2)

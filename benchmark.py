@@ -261,9 +261,9 @@ def print_comparison(single_res: dict, parallel_res: dict, single_path: str, par
 def main():
     """CLI Entrypoint parsing user flags and executing automated benchmark runs."""
     print("=" * 72)
-    print("⚡ High Speed Campus Downloader — Performance Benchmark Harness")
+    print("High Speed Campus Downloader - Performance Benchmark Harness")
     print("Authors: Tanjila Afsari Rubina (24241310) & Sandip Kumar Paul (24241311)")
-    print("Course:  CSE449 — Parallel, Distributed & High-Performance Computing")
+    print("Course:  CSE449 - Parallel, Distributed & High-Performance Computing")
     print("License: GNU General Public License v3.0 (GPLv3)")
     print("=" * 72)
 
