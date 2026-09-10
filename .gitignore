@@ -1,0 +1,73 @@
+# ============================================================================
+# EdgeMesh: High Speed Campus Downloader for Students - .gitignore
+# ============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging / PyInstaller build artifacts
+build/
+dist/
+downloads/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Benchmark and temporary download outputs
+benchmark_out/*
+!benchmark_out/.gitkeep
+*.bin
+*.iso
+*.tmp
+*.part
+*.download
+
+# Unit test & coverage reports
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor / IDE configurations
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Operating System files
+Thumbs.db
+desktop.ini
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Log files
+*.log
+
+# LaTeX build artifacts & paper drafts
+*.aux
+*.out
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.tex
+*.pdf
+PROJECT_REPORT_ACM.md
+

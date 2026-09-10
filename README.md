@@ -1,8 +1,8 @@
-# ⚡ High Speed Campus Downloader for Students (EdgeMesh)
+# ⚡ High Speed Campus Downloader for Students
 ### *A Zero-Cost Cooperative Bandwidth Aggregation System*
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![QA Suite](https://img.shields.io/badge/QA%20Tests-28%2F28%20Passing-brightgreen.svg)](test_qa_suite.py)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-lightgrey.svg?logo=windows&logoColor=blue)](https://microsoft.com)
 [![Bandwidth Speedup](https://img.shields.io/badge/Aggregate%20Speedup-~3.7x-orange.svg)](#-theoretical-vs-experimental-speedup-10-gb-file)
@@ -11,7 +11,7 @@
 - Tanjila Afsari Rubina (Student ID: 24241310)
 - Sandip Kumar Paul (Student ID: 24241311)
 
-**Course:** CSE449 - Parallel, Distributed & High-Performance Computing
+**Course:** CSE449 — Parallel, Distributed & High-Performance Computing
 
 ---
 
@@ -19,7 +19,7 @@
 
 Campus and enterprise networks enforce strict per-user bandwidth limits (e.g., **10 Mbps per student account**) regardless of available physical line capacity. 
 
-**High Speed Campus Downloader (EdgeMesh)** pools the bandwidth of **4 distinct student PCs** to download a single large file concurrently over independent WAN accounts and merges the chunks across a zero-cost local Wi-Fi Hotspot mesh, achieving a **~3.7x speedup** with zero additional hardware.
+**High Speed Campus Downloader for Students** pools the bandwidth of **4 distinct student PCs** to download a single large file concurrently over independent WAN accounts and merges the chunks across a zero-cost local Wi-Fi Hotspot mesh, achieving a **~3.7x speedup** with zero additional hardware.
 
 ```
                  [ Remote Server (HTTP File Hosting) ]
@@ -50,7 +50,7 @@ Campus and enterprise networks enforce strict per-user bandwidth limits (e.g., *
 
 ### 2. Distributed Systems
 * **Master-Worker & Edge Aggregator Mesh:** PC2 dynamically assumes the role of a local staging aggregator hosting a Wi-Fi Hotspot.
-* **UDP Auto-Discovery:** Master and Worker nodes dynamically pair using UDP broadcasts (`EDGEMESH_DISCOVERY` on port `5005`) without requiring manual IP entry.
+* **UDP Auto-Discovery:** Master and Worker nodes dynamically pair using UDP broadcasts (`CAMPUS_DISCOVERY` on port `5005`) without requiring manual IP entry.
 * **TCP Streaming (Phase 2 & 3):** Workers stream completed chunks directly into PC2's local socket server at local LAN speeds (>300 Mbps).
 
 ### 3. High-Performance Computing (HPC) & Out-of-Core I/O
@@ -159,7 +159,7 @@ python benchmark.py --url https://speed.hetzner.de/100MB.bin
 
 ### Theoretical vs. Experimental Speedup (10 GB File)
 
-| Metric | Standard Single-Node | EdgeMesh (4 Nodes) | Speedup |
+| Metric | Standard Single-Node | Campus Downloader (4 Nodes) | Speedup |
 | :--- | :--- | :--- | :--- |
 | **WAN Bandwidth** | 10 Mbps (1 pipe) | 40 Mbps aggregate (4 pipes) | $4.0\times$ |
 | **WAN Phase Time** | 136 minutes | 34 minutes | $4.0\times$ |
@@ -201,8 +201,11 @@ High Speed Campus Downloader for Students/
     └── fig6_cpu_io_breakdown.png
 ```
 
----
+## 📜 License & Academic Integrity
+ 
+This project is licensed under the [GNU General Public License v3.0 (GPLv3)](LICENSE) — see the LICENSE file for details.
 
-## 📜 License
-
-This project is licensed under the [MIT License](LICENSE) — see the LICENSE file for details.
+> [!IMPORTANT]
+> **Academic Integrity Notice:**  
+> This software and its experimental evaluations were authored by **Tanjila Afsari Rubina (ID: 24241310)** and **Sandip Kumar Paul (ID: 24241311)** for academic submission in **CSE449: Parallel, Distributed & High-Performance Computing**.  
+> Uncredited reproduction, redistribution, or resubmission of this codebase or its artifacts for coursework credit at any academic institution is strictly prohibited and constitutes academic plagiarism.

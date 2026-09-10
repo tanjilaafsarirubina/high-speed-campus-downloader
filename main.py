@@ -2,9 +2,25 @@
 ====================================================================================================
 ⚡ HIGH SPEED CAMPUS DOWNLOADER (EDGEMESH) — DASHBOARD & CONTROLLER
 ====================================================================================================
-Course:  CSE449 — Parallel, Distributed & High-Performance Computing
-Authors: Tanjila Afsari Rubina (Student ID: 24241310)
-         Sandip Kumar Paul     (Student ID: 24241311)
+Course:      CSE449 — Parallel, Distributed & High-Performance Computing
+Authors:     Tanjila Afsari Rubina (Student ID: 24241310)
+             Sandip Kumar Paul     (Student ID: 24241311)
+Copyright:   (C) 2026 Tanjila Afsari Rubina & Sandip Kumar Paul. All Rights Reserved.
+License:     GNU General Public License v3.0 (GPLv3)
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License as published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details: <https://www.gnu.org/licenses/>.
+
+ACADEMIC INTEGRITY & ANTI-PLAGIARISM NOTICE:
+This codebase is an original capstone submission for CSE449. Any unauthorized reproduction,
+plagiarism, or submission of this work for academic credit by other students is strictly
+prohibited and constitutes academic misconduct under university regulations.
+====================================================================================================
 
 DASHBOARD & DISTRIBUTED CONTROLLER ARCHITECTURE:
 This module provides the modern GUI and cluster orchestrator built using CustomTkinter.
@@ -162,9 +178,9 @@ class EdgeMeshApp(ctk.CTk):
 
         subtitle_label = ctk.CTkLabel(
             title_box,
-            text="Cooperative Bandwidth Aggregation System (Parallel, Distributed & HPC)",
-            font=ctk.CTkFont(size=12),
-            text_color="gray70"
+            text="Cooperative Bandwidth Aggregation | Tanjila (24241310) & Sandip (24241311) | CSE449 [GPLv3]",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#81D4FA"
         )
         subtitle_label.pack(anchor="w")
 

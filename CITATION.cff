@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you refer to, benchmark, or test this software, please cite it as below."
+authors:
+  - family-names: "Rubina"
+    given-names: "Tanjila Afsari"
+    affiliation: "CSE449, Department of Computer Science and Engineering"
+    student-id: "24241310"
+  - family-names: "Paul"
+    given-names: "Sandip Kumar"
+    affiliation: "CSE449, Department of Computer Science and Engineering"
+    student-id: "24241311"
+title: "High Speed Campus Downloader for Students: A Zero-Cost Cooperative Bandwidth Aggregation System"
+version: 1.0.0
+license: GPL-3.0-or-later
+date-released: 2026-09-06
+repository-code: "https://github.com/tanjilaafsarirubina/high-speed-campus-downloader"
+keywords:
+  - parallel-computing
+  - distributed-systems
+  - high-performance-computing
+  - bandwidth-aggregation
+  - cse449
