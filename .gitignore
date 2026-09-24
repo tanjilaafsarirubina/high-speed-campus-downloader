@@ -10,6 +10,7 @@ __pycache__/
 # Distribution / packaging / PyInstaller build artifacts
 build/
 dist/
+*.spec
 downloads/
 *.egg-info/
 .installed.cfg

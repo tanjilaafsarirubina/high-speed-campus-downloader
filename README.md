@@ -236,12 +236,15 @@ high-speed-campus-downloader/
 ├── launch_cluster_test.bat  # Opens the GUI and lists the benchmark/test commands
 ├── .github/workflows/ci.yml # Lint, tests, cluster e2e, GUI smoke test, benchmark suite
 ├── CITATION.cff             # Citation metadata ("Cite this repository")
-└── LICENSE                  # GNU GPLv3 with the course's academic-integrity notice
+└── LICENSE                  # GNU GPLv3 (unmodified text)
 ```
 
 ## 📜 License & Academic Integrity
 
-This project is licensed under the [GNU General Public License v3.0 (GPLv3)](LICENSE) — see the LICENSE file for details.
+Copyright (C) 2026 Tanjila Afsari Rubina & Sandip Kumar Paul.
+
+This project is free software under the [GNU General Public License v3.0](LICENSE), version 3 or (at your
+option) any later version. It comes with ABSOLUTELY NO WARRANTY; see the LICENSE file for details.
 
 > [!IMPORTANT]
 > **Academic Integrity Notice:**  
