@@ -17,6 +17,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -120,6 +121,7 @@ def orchestrate(args) -> int:
             if line.startswith("RESULT "):
                 results[name] = json.loads(line[len("RESULT "):])
     server.shutdown()
+    shutil.rmtree(work, ignore_errors=True)
 
     master = results.get("master", {})
     hash_ok = master.get("sha256") == expected
