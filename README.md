@@ -89,13 +89,18 @@ prediction for large files. On one machine, the per-connection cap stands in for
 
 ## Installation
 
-Python 3.10+ on every PC.
+**Windows, no Python needed:** download `CampusDownloader.exe` from the
+[latest release](https://github.com/tanjilaafsarirubina/high-speed-campus-downloader/releases/latest) and
+run it. It isn't code-signed, so SmartScreen may ask you to click *More info → Run anyway*.
+
+**From source:** Python 3.10+ on every PC.
 
 ```bash
 pip install -r requirements.txt
 ```
 
 `requirements-bench.txt` adds `matplotlib` and `numpy` for the figure-generating benchmark suite.
+To build the `.exe` yourself, `pip install pyinstaller` (ideally inside a `.venv`) and run `build_exe.bat`.
 
 ---
 
@@ -213,9 +218,6 @@ to run: 68–378 MiB/s across runs on the same laptop, versus 1.25 MiB/s for one
 * **One writer lock serializes all streams.** On loopback, lock waits are 55–72% of download-thread
   time. That is irrelevant at 10 Mbps, but it is the first thing to change for faster links (for example
   per-thread `os.pwrite`).
-* **The v1.0.0 `.exe` on the Releases page predates these fixes.** It has the dead default URL, 4-node
-  mode resolving to 2 chunks, and multi-Worker Auto-Balance leaving gaps. Build a fresh one with
-  `build_exe.bat` (needs `pip install pyinstaller`).
 
 ---
 
