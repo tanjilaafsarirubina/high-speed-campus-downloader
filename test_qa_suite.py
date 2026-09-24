@@ -27,7 +27,7 @@ MODULE PURPOSE & VERIFICATION OBJECTIVES:
 This automated QA and verification suite provides formal empirical validation of the core
 theoretical and systems-level invariants underpinning the EdgeMesh architecture. Designed
 to verify correctness across distributed systems, parallel computing, and high-performance
-I/O domains, this suite covers 28 rigorous unit and integration tests:
+I/O domains, this suite covers 31 unit and integration tests:
 
 1. Parallel Domain Decomposition:
    - 1D linear byte-range partitioning over arbitrary byte spaces [0, N-1].
@@ -41,7 +41,7 @@ I/O domains, this suite covers 28 rigorous unit and integration tests:
    - Multi-threaded concurrent write safety without buffer corruption or write-race collisions.
 
 3. Layer 4 Custom Binary Wire Framing & Exact-Byte Reassembly:
-   - Application-layer stream framing (Magic 0xDEADBEEF + 32-bit length header + payload).
+   - Application-layer stream framing (Magic b"CAMPUS_DL_V1" + 32-bit length header + payload).
    - Micro-packet fragmentation injection verifying 'recv_exact()' reassembles fragmented TCP frames.
    - Resilient handling of premature socket EOFs and deliberate stream resets.
 
@@ -49,6 +49,8 @@ I/O domains, this suite covers 28 rigorous unit and integration tests:
    - Loopback TCP streaming integration between LocalTCPClient (worker) and LocalTCPServer (master).
    - Full two-phase ACK handshake verification and SHA-256 cryptographic bit-for-bit parity checks.
    - ControlPlaneServer RPC capacity negotiation and makespan-optimal chunk assignment (port 5000).
+   - CapacityBarrier: staggered multi-Worker reports still receive one consistent, gap-free split.
+   - UDP discovery beacon answers a Master probe over loopback.
 
 5. Fault-Tolerant WAN Ingress & HTTP/1.1 RFC 7233 Compliance:
    - Mock HTTP server handling byte-range partial content requests (HTTP 206 Partial Content).
@@ -64,7 +66,6 @@ I/O domains, this suite covers 28 rigorous unit and integration tests:
 """
 
 import os
-import sys
 import time
 import socket
 import struct
@@ -78,20 +79,19 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 from engine import (
     DownloadChunk,
-    FileMetadata,
     ThreadSafeFileWriter,
     WANChunkDownloader,
     LocalTCPServer,
     LocalTCPClient,
     PeerDiscoveryService,
+    CapacityBarrier,
     recv_exact,
     calculate_file_hash,
     TCP_DATA_MAGIC,
-    format_bytes,
-    format_speed,
+    UDP_DISCOVERY_PORT,
     fetch_file_metadata,
+    split_uniform,
     compute_optimal_chunks,
-    measure_wan_bandwidth,
     ControlPlaneServer,
     ControlPlaneClient,
     send_json,
@@ -118,19 +118,14 @@ class TestDomainDecomposition(unittest.TestCase):
 
     def _verify_chunking(self, total_size: int, num_chunks: int):
         """
-        Helper method to perform comprehensive boundary and invariants validation.
-        
+        Helper method to perform comprehensive boundary and invariants validation
+        on engine.split_uniform (the decomposition used by fetch_file_metadata).
+
         Args:
             total_size: Total byte count N of the synthetic file.
             num_chunks: Number of partitions p to decompose into.
         """
-        chunk_size = total_size // num_chunks
-        chunks = []
-        for i in range(num_chunks):
-            start = i * chunk_size
-            # Terminal chunk absorbs the division remainder (N mod p)
-            end = (start + chunk_size - 1) if i < (num_chunks - 1) else (total_size - 1)
-            chunks.append(DownloadChunk(chunk_id=i, start_byte=start, end_byte=end))
+        chunks = split_uniform(total_size, num_chunks)
 
         # Invariant 1: Cardinality check - exactly p partitions generated
         self.assertEqual(len(chunks), num_chunks,
@@ -170,6 +165,12 @@ class TestDomainDecomposition(unittest.TestCase):
     def test_odd_prime_file_decomposition_4_nodes(self):
         """Domain decomposition of a prime-sized file (10,000,019 bytes) across 4 nodes with remainder."""
         self._verify_chunking(10_000_019, 4)
+
+    def test_decomposition_clamps_to_file_size(self):
+        """A 3-byte file split 4 ways yields three 1-byte chunks, never an empty one."""
+        chunks = split_uniform(3, 4)
+        self.assertEqual([c.total_bytes for c in chunks], [1, 1, 1])
+        self.assertEqual(split_uniform(0, 4), [])
 
 
 class TestThreadSafeFileWriter(unittest.TestCase):
@@ -290,7 +291,6 @@ class TestTCPFramingAndRecvExact(unittest.TestCase):
         server_sock, client_sock = socket.socketpair()
 
         test_msg = b"CRITICAL_TCP_FRAME_HEADER_FOR_EDGEMESH"
-        received_data = []
 
         def _sender():
             # Fragment transmission into tiny 3-byte packets with deliberate delays
@@ -336,11 +336,11 @@ class TestLocalTCPStreamingIntegration(unittest.TestCase):
     
     Validates end-to-end peer transmission between LocalTCPClient (Worker transmitter)
     and LocalTCPServer (Master receiver) over high-speed local TCP sockets:
-      1. Framing Protocol Handshake: Magic bytes (0xDEADBEEF) + JSON metadata length + JSON chunk descriptor.
+      1. Framing Protocol Handshake: Magic bytes (b"CAMPUS_DL_V1") + JSON metadata length + JSON chunk descriptor.
       2. Direct SSD Out-of-Core Reading & Writing: Worker streams directly from disk via read_range();
          Master writes directly to disk via write_at().
       3. Low-Latency High-Throughput Socket Tuning: TCP_NODELAY disablement of Nagle's algorithm.
-      4. Two-Phase Acknowledgment: Master returns b'OK' after header validation, b'ACK_OK' upon completion.
+      4. Acknowledgment: Master replies b'OK' once the received byte count matches the header (b'NO' otherwise).
       5. Bit-for-Bit Parity: Cryptographic SHA-256 verification confirms zero byte loss during transfer.
     """
 
@@ -603,7 +603,7 @@ class TestNetworkEdgeCases(unittest.TestCase):
             server.start()
             time.sleep(0.1)
 
-            # Transmit corrupted preamble instead of 4-byte TCP_DATA_MAGIC (0xDEADBEEF)
+            # Transmit corrupted preamble instead of the 12-byte TCP_DATA_MAGIC (b"CAMPUS_DL_V1")
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect(("127.0.0.1", 19999))
             s.sendall(b"INVALID_MAGIC_DATA")
@@ -719,6 +719,27 @@ class TestFileMetadataProbe(unittest.TestCase):
             small_httpd.shutdown()
             small_httpd.server_close()
 
+    def test_dot_only_filename_falls_back(self):
+        """A server-suggested filename of '..' is replaced so the save path cannot resolve to a directory."""
+        class DotDotHandler(BaseHTTPRequestHandler):
+            def do_HEAD(self):
+                self.send_response(200)
+                self.send_header("Content-Length", "100")
+                self.send_header("Accept-Ranges", "bytes")
+                self.send_header("Content-Disposition", 'attachment; filename=".."')
+                self.end_headers()
+            def log_message(self, format, *args):
+                pass
+
+        httpd = HTTPServer(("127.0.0.1", 0), DotDotHandler)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            meta = fetch_file_metadata(f"http://127.0.0.1:{httpd.server_port}/x", num_chunks=2)
+            self.assertEqual(meta.filename, "downloaded_file.bin")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
 
 
 class TestHeterogeneousScheduling(unittest.TestCase):
@@ -815,6 +836,54 @@ class TestHeterogeneousScheduling(unittest.TestCase):
         finally:
             server.stop()
 
+    def test_capacity_barrier_gives_all_workers_one_split(self):
+        """Staggered reports from 3 Workers all receive boundaries from one gap-free 4-node split."""
+        total_size = 16_777_216
+        test_port = 15001
+        barrier = CapacityBarrier()
+        master_chunk = {}
+
+        def _on_report(req, sock, addr):
+            batch = barrier.add(req["worker_id"], req["measured_speed"], sock, expected=3)
+            if batch is None:
+                return  # keep the socket open until every Worker has reported
+            speeds = {0: 4_000_000.0}
+            speeds.update({wid: spd for wid, (spd, _) in batch.items()})
+            chunks = {c.chunk_id: c for c in compute_optimal_chunks(total_size, speeds)}
+            master_chunk["c"] = chunks[0]
+            for wid, (_, wsock) in batch.items():
+                send_json(wsock, {"status": "OK", "chunk_id": wid,
+                                  "start_byte": chunks[wid].start_byte, "end_byte": chunks[wid].end_byte})
+                wsock.close()
+
+        server = ControlPlaneServer(host="127.0.0.1", port=test_port, on_worker_reported=_on_report)
+        server.start()
+        time.sleep(0.15)
+
+        results = {}
+
+        def _worker(wid):
+            time.sleep(0.3 * (wid - 1))  # Workers click Auto-Balance at different times
+            results[wid] = ControlPlaneClient.report_capacity_and_get_chunk(
+                "127.0.0.1", test_port, worker_id=wid, measured_speed=2_000_000.0 * wid, timeout=5.0)
+
+        threads = [threading.Thread(target=_worker, args=(wid,)) for wid in (1, 2, 3)]
+        try:
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            server.stop()
+
+        self.assertTrue(all(results.get(w) and results[w]["status"] == "OK" for w in (1, 2, 3)), results)
+        ranges = sorted([(master_chunk["c"].start_byte, master_chunk["c"].end_byte)] +
+                        [(results[w]["start_byte"], results[w]["end_byte"]) for w in (1, 2, 3)])
+        self.assertEqual(ranges[0][0], 0)
+        self.assertEqual(ranges[-1][1], total_size - 1)
+        for (_, prev_end), (next_start, _) in zip(ranges, ranges[1:]):
+            self.assertEqual(prev_end + 1, next_start, f"Overlap or gap in assigned ranges: {ranges}")
+
     def test_compute_optimal_chunks_non_contiguous_node_ids(self):
         """Makespan scheduler resilience to non-contiguous node IDs (cluster node dropout)."""
         # Non-contiguous node IDs {0: 2MB/s, 2: 8MB/s} (e.g. 4-node cluster with node 1 skipped)
@@ -851,7 +920,7 @@ class TestRobustnessAndEdgeCases(unittest.TestCase):
       2. Out-of-bounds byte range rejection in LocalTCPServer preventing disk buffer overflows.
       3. Graceful handling of out-of-core disk read errors preventing worker deadlocks.
       4. Extreme speed asymmetry (1:1000 ratio) over small payloads without boundary collapse.
-      5. Thread-safe lifecycle signaling for UDP worker discovery beacons.
+      5. UDP worker discovery beacon answering a Master probe over loopback.
       6. Automatic WAN download resumption upon unexpected server socket disconnection.
     """
 
@@ -964,12 +1033,25 @@ class TestRobustnessAndEdgeCases(unittest.TestCase):
             self.assertEqual(chunks[i].end_byte + 1, chunks[i+1].start_byte)
         self.assertEqual(sum(c.total_bytes for c in chunks), total_size)
 
-    def test_peer_discovery_worker_beacon_lifecycle(self):
-        """Worker UDP beacon background thread clean startup and shutdown via Event signal."""
+    def test_peer_discovery_worker_beacon_answers_probe(self):
+        """Worker UDP beacon replies EDGEMESH_WORKER to a Master's EDGEMESH_DISCOVERY probe."""
         beacon_stop = PeerDiscoveryService.start_worker_beacon()
-        time.sleep(0.1)
-        beacon_stop.set()
-        self.assertTrue(beacon_stop.is_set())
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.settimeout(0.5)
+        reply = None
+        try:
+            # The beacon binds on its own thread; retry briefly instead of guessing a sleep
+            for _ in range(8):
+                probe.sendto(b"EDGEMESH_DISCOVERY", ("127.0.0.1", UDP_DISCOVERY_PORT))
+                try:
+                    reply, _ = probe.recvfrom(1024)
+                    break
+                except socket.timeout:
+                    continue
+            self.assertEqual(reply, b"EDGEMESH_WORKER", "Worker beacon did not answer the discovery probe.")
+        finally:
+            probe.close()
+            beacon_stop.set()
 
     def test_truncated_wan_stream_auto_resume(self):
         """Automatic download resumption after mid-stream HTTP connection drop with SHA-256 validation."""
@@ -1056,7 +1138,7 @@ class TestRobustnessAndEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     print("=" * 78)
-    print("High Speed Campus Downloader - Formal Verification & QA Suite (28 Tests)")
+    print("High Speed Campus Downloader - Formal Verification & QA Suite (31 Tests)")
     print("Authors: Tanjila Afsari Rubina (24241310) & Sandip Kumar Paul (24241311)")
     print("Course:  CSE449 - Parallel, Distributed & High-Performance Computing")
     print("License: GNU General Public License v3.0 (GPLv3)")

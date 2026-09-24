@@ -71,7 +71,7 @@ from engine import (
 )
 
 # Standard public high-bandwidth test file (100 MB binary asset)
-DEFAULT_TEST_URL = "https://speed.hetzner.de/100MB.bin"
+DEFAULT_TEST_URL = "https://fsn1-speed.hetzner.com/100MB.bin"
 
 
 class MockRangeHTTPHandler(BaseHTTPRequestHandler):
@@ -141,7 +141,7 @@ def benchmark_single_stream(url: str, output_path: str) -> dict:
     Returns:
         dict: Performance metrics including execution time (s), total bytes, and average speed (Bytes/s).
     """
-    print(f"\n[1/2] 🚀 Running Baseline (Single-Connection Download)...")
+    print("\n[1/2] 🚀 Running Baseline (Single-Connection Download)...")
     start_time = time.time()
     
     response = requests.get(url, stream=True, timeout=30)

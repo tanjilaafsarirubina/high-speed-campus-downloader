@@ -595,7 +595,7 @@ def measure_wan_bandwidth(url: str, probe_duration: float = 2.0,
         float: Estimated bandwidth in Bytes per second (fallback baseline: 2.5 MB/s).
     """
     if on_log:
-        on_log(f"[Bandwidth Probe] Measuring WAN throughput against remote server...")
+        on_log("[Bandwidth Probe] Measuring WAN throughput against remote server...")
 
     headers = {
         'Range': 'bytes=0-10485759',  # Request up to 10 MB slice
@@ -884,17 +884,78 @@ class ControlPlaneClient:
             sock.close()
 
 
-class TaskDispatcher:
-    """Backward compatibility interface for legacy task dispatching."""
-    @staticmethod
-    def dispatch_chunk_task(worker_ip: str, url: str, chunk: DownloadChunk,
-                            aggregator_ip: str, on_log: Optional[Callable[[str], None]] = None) -> bool:
-        return True
+class CapacityBarrier:
+    """
+    Collects Worker capacity reports on the Master and releases them as one batch.
+
+    Every Worker must receive boundaries from the SAME makespan split. Answering each report
+    as it arrives hands out splits computed for different cluster sizes (2, then 3, then 4
+    nodes), whose chunks overlap and leave byte ranges that nobody downloads.
+
+    Usage: call `add()` for each report; it returns None while reports are still missing and
+    the full {worker_id: (speed, socket)} batch once `expected` distinct Workers have reported.
+    The caller replies on (and closes) every socket in the batch.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._pending: Dict[int, Tuple[float, socket.socket]] = {}
+
+    def add(self, worker_id: int, speed: float, sock: socket.socket,
+            expected: int) -> Optional[Dict[int, Tuple[float, socket.socket]]]:
+        with self._lock:
+            stale = self._pending.pop(worker_id, None)
+            if stale:
+                stale[1].close()  # Worker retried; answer its newest connection
+            self._pending[worker_id] = (speed, sock)
+            if len(self._pending) < expected:
+                return None
+            batch = dict(self._pending)
+            self._pending.clear()
+            return batch
+
+    def missing(self, expected: int) -> int:
+        with self._lock:
+            return max(0, expected - len(self._pending))
+
+    def reset(self):
+        """Drops all waiting reports and closes their sockets."""
+        with self._lock:
+            for _, sock in self._pending.values():
+                sock.close()
+            self._pending.clear()
 
 
 # ============================================================================
 # DATA PLANE: REMOTE FILE PROBE & METADATA EXTRACTION
 # ============================================================================
+
+def split_uniform(total_size: int, num_chunks: int) -> List[DownloadChunk]:
+    """
+    Uniform 1D domain decomposition of the byte range [0, total_size - 1].
+
+    Every chunk gets `total_size // num_chunks` bytes; the terminal chunk also absorbs the
+    remainder (total_size mod num_chunks). `num_chunks` is clamped to [1, total_size] so no
+    chunk is ever empty.
+
+    Args:
+        total_size: Total file size in bytes (must be > 0).
+        num_chunks: Requested number of partitions.
+
+    Returns:
+        List[DownloadChunk]: Contiguous, non-overlapping chunks covering every byte exactly once.
+    """
+    if total_size <= 0:
+        return []
+    num_chunks = max(1, min(num_chunks, total_size))
+    chunk_size = total_size // num_chunks
+    chunks = []
+    for i in range(num_chunks):
+        start = i * chunk_size
+        end = (start + chunk_size - 1) if i < (num_chunks - 1) else (total_size - 1)
+        chunks.append(DownloadChunk(chunk_id=i, start_byte=start, end_byte=end))
+    return chunks
+
 
 def fetch_file_metadata(url: str, num_chunks: int = 4, timeout: int = 10) -> FileMetadata:
     """
@@ -955,7 +1016,7 @@ def fetch_file_metadata(url: str, num_chunks: int = 4, timeout: int = 10) -> Fil
 
     # Security sanitization: strip directory traversal sequences and special characters
     filename = "".join([c for c in filename if c.isalnum() or c in "._- "]).strip()
-    if not filename:
+    if not filename.strip("."):  # "", ".", ".." would resolve to a directory, not a file
         filename = "downloaded_file.bin"
 
     # Secondary Probe: If Content-Length missing or ranges unconfirmed, issue GET Range micro-probe
@@ -977,17 +1038,8 @@ def fetch_file_metadata(url: str, num_chunks: int = 4, timeout: int = 10) -> Fil
     if content_length <= 0:
         raise ValueError("Could not determine file size. Parallel range downloads require Content-Length.")
 
-    # Clamp num_chunks so each partition contains at least 1 byte
-    if content_length < num_chunks:
-        num_chunks = max(1, content_length)
-
-    # Calculate uniform 1D byte slices
-    chunks = []
-    chunk_size = content_length // num_chunks
-    for i in range(num_chunks):
-        start = i * chunk_size
-        end = (start + chunk_size - 1) if i < (num_chunks - 1) else (content_length - 1)
-        chunks.append(DownloadChunk(chunk_id=i, start_byte=start, end_byte=end))
+    # Uniform 1D byte slices (clamped so each partition contains at least 1 byte)
+    chunks = split_uniform(content_length, num_chunks)
 
     session.close()
 
@@ -996,7 +1048,7 @@ def fetch_file_metadata(url: str, num_chunks: int = 4, timeout: int = 10) -> Fil
         filename=filename,
         total_size=content_length,
         supports_ranges=accept_ranges,
-        num_chunks=num_chunks,
+        num_chunks=len(chunks),
         chunks=chunks
     )
 

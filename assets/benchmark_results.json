@@ -1,0 +1,323 @@
+{
+  "metadata": {
+    "course": "CSE449: Parallel, Distributed & High-Performance Computing",
+    "project": "High Speed Campus Downloader for Students (EdgeMesh)",
+    "authors": [
+      {
+        "name": "Tanjila Afsari Rubina",
+        "student_id": "24241310"
+      },
+      {
+        "name": "Sandip Kumar Paul",
+        "student_id": "24241311"
+      }
+    ],
+    "timestamp": "2026-09-24 08:27:25",
+    "python": "3.14.4",
+    "platform": "win32",
+    "cpu_count": 8,
+    "note": "exp1.measured, exp2, exp5, exp6 are measured on loopback; exp1.model, exp3, exp4 are modeled."
+  },
+  "exp1": {
+    "measured_payload_bytes": 8388608,
+    "per_connection_cap_bps": 1310720.0,
+    "repeats": 3,
+    "measured": [
+      {
+        "workers": 1,
+        "time_sec": 6.406658100000186,
+        "runs_sec": [
+          6.406658100000186,
+          6.414173699999992,
+          6.406632400000035
+        ],
+        "speedup": 1.0,
+        "efficiency": 100.0
+      },
+      {
+        "workers": 2,
+        "time_sec": 3.221234699999968,
+        "runs_sec": [
+          3.206808699999783,
+          3.221234699999968,
+          3.2268247999995765
+        ],
+        "speedup": 1.9888827411427827,
+        "efficiency": 99.44413705713913
+      },
+      {
+        "workers": 3,
+        "time_sec": 2.1416857999997774,
+        "runs_sec": [
+          2.1423079000001053,
+          2.141440099999727,
+          2.1416857999997774
+        ],
+        "speedup": 2.991408963910977,
+        "efficiency": 99.71363213036591
+      },
+      {
+        "workers": 4,
+        "time_sec": 1.6088894999998047,
+        "runs_sec": [
+          1.6088894999998047,
+          1.618464700000004,
+          1.6076709000003575
+        ],
+        "speedup": 3.9820373617958,
+        "efficiency": 99.550934044895
+      },
+      {
+        "workers": 8,
+        "time_sec": 0.823435100000097,
+        "runs_sec": [
+          0.8160229000000072,
+          0.823435100000097,
+          0.8300171000000773
+        ],
+        "speedup": 7.780404430172373,
+        "efficiency": 97.25505537715466
+      }
+    ],
+    "model_size_bytes": 104857600,
+    "model": [
+      {
+        "workers": 1,
+        "time_sec": 80.0,
+        "speedup": 1.0,
+        "efficiency": 100.0
+      },
+      {
+        "workers": 2,
+        "time_sec": 43.642857142857146,
+        "speedup": 1.8330605564648117,
+        "efficiency": 91.65302782324059
+      },
+      {
+        "workers": 3,
+        "time_sec": 30.690476190476193,
+        "speedup": 2.6066718386346004,
+        "efficiency": 86.88906128782001
+      },
+      {
+        "workers": 4,
+        "time_sec": 24.214285714285715,
+        "speedup": 3.303834808259587,
+        "efficiency": 82.59587020648968
+      },
+      {
+        "workers": 8,
+        "time_sec": 14.5,
+        "speedup": 5.517241379310345,
+        "efficiency": 68.96551724137932
+      }
+    ]
+  },
+  "exp2": {
+    "filesize_data": [
+      {
+        "size_mb": 10,
+        "size_bytes": 10485760,
+        "t_single_sec": 0.025510200000098848,
+        "t_parallel_sec": 0.03475829999979396,
+        "speedup": 0.7339311761579268,
+        "efficiency": 18.34827940394817
+      },
+      {
+        "size_mb": 25,
+        "size_bytes": 26214400,
+        "t_single_sec": 0.044178200000260404,
+        "t_parallel_sec": 0.06894580000016504,
+        "speedup": 0.640767095314793,
+        "efficiency": 16.019177382869827
+      },
+      {
+        "size_mb": 50,
+        "size_bytes": 52428800,
+        "t_single_sec": 0.18213739999964673,
+        "t_parallel_sec": 0.11475390000032348,
+        "speedup": 1.5872000864383111,
+        "efficiency": 39.68000216095778
+      },
+      {
+        "size_mb": 100,
+        "size_bytes": 104857600,
+        "t_single_sec": 0.21214940000027127,
+        "t_parallel_sec": 0.25747910000018237,
+        "speedup": 0.8239480408317452,
+        "efficiency": 20.59870102079363
+      }
+    ]
+  },
+  "exp3": {
+    "wan_account_mbps": 10.0,
+    "lan_hotspot_mbps": 350.0,
+    "overhead_sec": 2.5,
+    "comparisons": [
+      {
+        "name": "Lecture Recording",
+        "size_mb": 100,
+        "size_bytes": 104857600,
+        "t_single_sec": 80.0,
+        "t_2nodes_sec": 43.642857142857146,
+        "t_3nodes_sec": 30.690476190476193,
+        "t_4nodes_sec": 24.214285714285715,
+        "speedup_2nodes": 1.8330605564648117,
+        "speedup_3nodes": 2.6066718386346004,
+        "speedup_4nodes": 3.303834808259587
+      },
+      {
+        "name": "Lab VM Appliance",
+        "size_mb": 500,
+        "size_bytes": 524288000,
+        "t_single_sec": 400.0,
+        "t_2nodes_sec": 208.21428571428572,
+        "t_3nodes_sec": 143.45238095238093,
+        "t_4nodes_sec": 111.07142857142857,
+        "speedup_2nodes": 1.9210977701543739,
+        "speedup_3nodes": 2.7883817427385895,
+        "speedup_4nodes": 3.6012861736334405
+      },
+      {
+        "name": "Ubuntu Linux ISO",
+        "size_mb": 1024,
+        "size_bytes": 1073741824,
+        "t_single_sec": 819.2,
+        "t_2nodes_sec": 423.8028571428572,
+        "t_3nodes_sec": 291.17047619047617,
+        "t_4nodes_sec": 224.85428571428574,
+        "speedup_2nodes": 1.9329742265608671,
+        "speedup_3nodes": 2.8134720618587052,
+        "speedup_4nodes": 3.6432483258999477
+      },
+      {
+        "name": "MATLAB / CUDA Toolkit",
+        "size_mb": 4096,
+        "size_bytes": 4294967296,
+        "t_single_sec": 3276.8,
+        "t_2nodes_sec": 1687.7114285714288,
+        "t_3nodes_sec": 1157.1819047619047,
+        "t_4nodes_sec": 891.917142857143,
+        "speedup_2nodes": 1.9415641468836073,
+        "speedup_3nodes": 2.831706913593863,
+        "speedup_4nodes": 3.6738838649330012
+      },
+      {
+        "name": "Kaggle / ML Dataset",
+        "size_mb": 10240,
+        "size_bytes": 10737418240,
+        "t_single_sec": 8192.0,
+        "t_2nodes_sec": 4215.528571428571,
+        "t_3nodes_sec": 2889.204761904762,
+        "t_4nodes_sec": 2226.042857142857,
+        "speedup_2nodes": 1.9432913005317078,
+        "speedup_3nodes": 2.835382285123769,
+        "speedup_4nodes": 3.6800729032299473
+      }
+    ]
+  },
+  "exp4": {
+    "file_size_mb": 500.0,
+    "lan_speed_mib_s": 35.0,
+    "naive_makespan_sec": 25.0,
+    "optimal_makespan_sec": 13.886940785816737,
+    "makespan_reduction_pct": 44.45223685673305,
+    "node_breakdowns": [
+      {
+        "node_id": 0,
+        "bandwidth_mbps": 40.0,
+        "naive_size_mb": 125.0,
+        "naive_time_sec": 25.0,
+        "optimal_size_mb": 69.43470287322998,
+        "optimal_time_sec": 13.886940574645996
+      },
+      {
+        "node_id": 1,
+        "bandwidth_mbps": 160.0,
+        "naive_size_mb": 125.0,
+        "naive_time_sec": 9.821428571428571,
+        "optimal_size_mb": 176.74288272857666,
+        "optimal_time_sec": 13.886940785816737
+      },
+      {
+        "node_id": 2,
+        "bandwidth_mbps": 80.0,
+        "naive_size_mb": 125.0,
+        "naive_time_sec": 16.071428571428573,
+        "optimal_size_mb": 108.00953769683838,
+        "optimal_time_sec": 13.886940561022078
+      },
+      {
+        "node_id": 3,
+        "bandwidth_mbps": 120.0,
+        "naive_size_mb": 125.0,
+        "naive_time_sec": 11.904761904761905,
+        "optimal_size_mb": 145.81287670135498,
+        "optimal_time_sec": 13.886940638224285
+      }
+    ]
+  },
+  "exp5": {
+    "trace_size_mib": 64,
+    "sizes": [
+      {
+        "size_mib": 16,
+        "direct_peak_delta_mib": 1.5234375,
+        "inmem_peak_delta_mib": 19.32421875
+      },
+      {
+        "size_mib": 32,
+        "direct_peak_delta_mib": 0.390625,
+        "inmem_peak_delta_mib": 35.21484375
+      },
+      {
+        "size_mib": 64,
+        "direct_peak_delta_mib": 0.3984375,
+        "inmem_peak_delta_mib": 67.09765625
+      },
+      {
+        "size_mib": 128,
+        "direct_peak_delta_mib": 0.48828125,
+        "inmem_peak_delta_mib": 131.21875
+      }
+    ]
+  },
+  "exp6": {
+    "payload_bytes": 67108864,
+    "thread_time_total_sec": 0.6611133000001246,
+    "breakdown": [
+      {
+        "component": "HTTP receive (requests / socket)",
+        "time_sec": 0.1713550999961626,
+        "percentage": 25.919173006522527
+      },
+      {
+        "component": "Disk seek + write",
+        "time_sec": 0.1230791000048157,
+        "percentage": 18.616945084116825
+      },
+      {
+        "component": "Writer lock wait",
+        "time_sec": 0.3666790999991463,
+        "percentage": 55.463881909360644
+      }
+    ],
+    "wall_clock": [
+      {
+        "phase": "Preallocate file",
+        "time_sec": 0.010060500000236061
+      },
+      {
+        "phase": "Download 64 MiB (4 streams)",
+        "time_sec": 0.16938030000028448
+      },
+      {
+        "phase": "SHA-256 verify",
+        "time_sec": 0.21829220000017813
+      }
+    ],
+    "download_rate_bps": 396202297.43297946,
+    "sha256_rate_bps": 307426761.0109076,
+    "file_hash": "5df0cc26265b004eec74260bbc3cd60012814d04168e9018c9a1b24ce06610d3"
+  }
+}

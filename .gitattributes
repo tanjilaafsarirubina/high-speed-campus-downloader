@@ -1,0 +1,7 @@
+# Normalize text to LF in the repository
+* text=auto
+
+# Windows batch files must keep CRLF or cmd.exe can mis-parse labels and blocks
+*.bat text eol=crlf
+
+*.png binary

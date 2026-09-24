@@ -38,7 +38,8 @@ Key Responsibilities & Design Patterns:
    - MASTER (PC1): Downloads Chunk 0 over university Wi-Fi, hosts the TCP stream ingestion server
      on port 8888, and guides the student through Phase 3 network switching to assemble the final file.
    - AGGREGATOR (PC2): Broadcasts a Windows Mobile Hotspot mesh, downloads Chunk 1, and ingests
-     peer streams from PC3 and PC4 before forwarding them to Master.
+     peer streams from PC3 and PC4. (Relaying the collected chunks on to Master — the planned
+     Phase 3 — is not implemented yet; Workers can stream directly to Master instead.)
    - WORKER (PC3/PC4): Downloads assigned chunk over campus Wi-Fi, auto-joins the local mesh,
      and streams completed blocks directly to the Aggregator or Master.
 
@@ -79,12 +80,12 @@ from engine import (
     compute_optimal_chunks,
     ControlPlaneServer,
     ControlPlaneClient,
+    CapacityBarrier,
     TCP_DISPATCH_PORT,
     TCP_STREAM_PORT,
     DEFAULT_HOTSPOT_SSID,
     DEFAULT_HOTSPOT_KEY,
-    send_json,
-    recv_json
+    send_json
 )
 
 # Set global CustomTkinter theme
@@ -118,7 +119,7 @@ class EdgeMeshApp(ctk.CTk):
         self.control_plane_server: ControlPlaneServer = None
         self._master_speed: float = 0.0
         self._master_speed_event = threading.Event()
-        self._worker_speeds: dict = {}
+        self._capacity_barrier = CapacityBarrier()
         self.worker_beacon_stop = None
         self.is_running = False
         self._finished_lock = threading.Lock()
@@ -236,10 +237,10 @@ class EdgeMeshApp(ctk.CTk):
 
         self.url_entry = ctk.CTkEntry(
             url_frame,
-            placeholder_text="Enter direct file URL (e.g., https://speed.hetzner.de/100MB.bin)...",
+            placeholder_text="Enter direct file URL (e.g., https://fsn1-speed.hetzner.com/100MB.bin)...",
             height=38
         )
-        self.url_entry.insert(0, "https://speed.hetzner.de/100MB.bin")
+        self.url_entry.insert(0, "https://fsn1-speed.hetzner.com/100MB.bin")
         self.url_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
         self.probe_btn = ctk.CTkButton(url_frame, text="🔍 Inspect File", width=130, height=38, command=self._on_inspect_url)
@@ -381,7 +382,8 @@ class EdgeMeshApp(ctk.CTk):
 
     def _get_num_chunks(self) -> int:
         """Parses the active cluster topology selection into an integer chunk count (2 or 4)."""
-        return 2 if "2" in self.cluster_size_var.get() else 4
+        # Match on the leading digit: "4 Nodes (25% each)" also contains a "2".
+        return 4 if self.cluster_size_var.get().startswith("4") else 2
 
     def _on_cluster_size_change(self, choice):
         """Reconfigures chunk dropdown options and rebuilds telemetry grid when cluster size changes."""
@@ -442,7 +444,6 @@ class EdgeMeshApp(ctk.CTk):
                 c0 = self.metadata.chunks[0]
                 c1 = self.metadata.chunks[1]
                 pct0 = (c0.total_bytes / self.metadata.total_size) * 100.0
-                pct1 = (c1.total_bytes / self.metadata.total_size) * 100.0
                 node_names = [
                     ("Node 1 (Laptop - Master)", f"Chunk 0 [0% - {pct0:.1f}%] ({format_bytes(c0.total_bytes)})"),
                     ("Node 2 (Lab PC - Worker)", f"Chunk 1 [{pct0:.1f}% - 100%] ({format_bytes(c1.total_bytes)})")
@@ -727,7 +728,7 @@ class EdgeMeshApp(ctk.CTk):
 
         elif "Aggregator" in role:
             self.role_tip_label.configure(
-                text="📡 Aggregator (PC2): Click 'Start Hotspot' to create local mesh. Ingests Worker chunks and serves to Master."
+                text="📡 Aggregator (PC2): Click 'Start Hotspot' to create local mesh. Collects Worker chunks (relay to Master not implemented yet)."
             )
             self.peer_ip_entry.configure(state="disabled")
             self.worker_chunk_combo.configure(state="disabled")
@@ -820,11 +821,15 @@ class EdgeMeshApp(ctk.CTk):
 
                 self.after(0, _update_ui)
             except Exception as e:
+                # Bind the message now: Python unbinds `e` when the except block ends,
+                # and _error_ui only runs later on the Tk main loop.
+                err = str(e)
+
                 def _error_ui():
-                    self.file_info_label.configure(text=f"Probe failed: {e}")
-                    self.log(f"[Probe Error] {e}")
+                    self.file_info_label.configure(text=f"Probe failed: {err}")
+                    self.log(f"[Probe Error] {err}")
                     self.probe_btn.configure(state="normal", text="🔍 Inspect File")
-                    messagebox.showerror("Probe Failed", str(e))
+                    messagebox.showerror("Probe Failed", err)
 
                 self.after(0, _error_ui)
 
@@ -875,53 +880,76 @@ class EdgeMeshApp(ctk.CTk):
             if not self.control_plane_server:
                 def _on_worker_report(req, sock, addr):
                     action = req.get("action")
-                    if action == "REPORT_CAPACITY":
-                        w_id = req.get("worker_id", 1)
-                        w_spd = req.get("measured_speed", 5_000_000.0)
-                        self.log(f"[Auto-Balance] Received capacity report from Worker {w_id} ({addr[0]}): {format_speed(w_spd)}")
-                        self._worker_speeds[w_id] = w_spd
-
-                        # Wait for Master's own bandwidth probe to finish
-                        self._master_speed_event.wait(timeout=3.5)
-                        master_spd = self._master_speed if self._master_speed > 0 else 2.5 * 1024 * 1024
-
-                        # Compute optimal makespan chunk partitions
-                        all_speeds = {0: master_spd}
-                        all_speeds.update(self._worker_speeds)
-
-                        optimal_chunks = compute_optimal_chunks(self.metadata.total_size, all_speeds)
-                        self.metadata.chunks = optimal_chunks
-
-                        # Reply to worker with its assigned byte boundaries
-                        worker_chunk = next((c for c in optimal_chunks if c.chunk_id == w_id), optimal_chunks[-1])
-                        pct_m = (optimal_chunks[0].total_bytes / self.metadata.total_size) * 100.0
-                        pct_w = (worker_chunk.total_bytes / self.metadata.total_size) * 100.0
-
-                        send_json(sock, {
-                            "status": "OK",
-                            "chunk_id": w_id,
-                            "start_byte": worker_chunk.start_byte,
-                            "end_byte": worker_chunk.end_byte,
-                            "total_bytes": worker_chunk.total_bytes,
-                            "master_pct": pct_m,
-                            "worker_pct": pct_w
-                        })
+                    if action != "REPORT_CAPACITY":
                         sock.close()
+                        return
+                    w_id = req.get("worker_id", 1)
+                    w_spd = req.get("measured_speed", 5_000_000.0)
+                    expected = self._get_num_chunks() - 1
+                    self.log(f"[Auto-Balance] Received capacity report from Worker {w_id} ({addr[0]}): {format_speed(w_spd)}")
 
-                        # Update Master GUI dashboard
-                        def _update_master_ui():
-                            self._rebuild_telemetry_grid()
-                            self.role_tip_label.configure(
-                                text=f"⚖ Optimal Split: Laptop {pct_m:.1f}% ({format_bytes(optimal_chunks[0].total_bytes)}) | Lab PC {pct_w:.1f}% ({format_bytes(worker_chunk.total_bytes)})"
-                            )
-                            self.auto_dist_btn.configure(state="normal", text="⚡ Auto-Balance Chunks")
-                            self.log(f"[Auto-Balance] ✅ Optimal distribution computed! Laptop: {pct_m:.1f}% | Lab PC: {pct_w:.1f}%. Ready for download.")
-                            messagebox.showinfo("Auto-Balance Complete",
-                                                f"Optimal Heterogeneous Split Calculated!\n\n"
-                                                f"• Laptop (Master): {pct_m:.1f}% ({format_bytes(optimal_chunks[0].total_bytes)})\n"
-                                                f"• Lab PC (Worker): {pct_w:.1f}% ({format_bytes(worker_chunk.total_bytes)})\n\n"
-                                                f"Makespan minimized: Both devices will complete download simultaneously!")
-                        self.after(0, _update_master_ui)
+                    # Hold each Worker's connection until all of them have reported, then answer
+                    # everyone from ONE split (see CapacityBarrier for why).
+                    batch = self._capacity_barrier.add(w_id, w_spd, sock, expected)
+                    if batch is None:
+                        self.log(f"[Auto-Balance] Waiting for {self._capacity_barrier.missing(expected)} more Worker report(s)...")
+                        return
+                    reports = {wid: wsock for wid, (_, wsock) in batch.items()}
+
+                    # Wait for Master's own bandwidth probe to finish
+                    self._master_speed_event.wait(timeout=3.5)
+                    master_spd = self._master_speed if self._master_speed > 0 else 2.5 * 1024 * 1024
+
+                    # Compute optimal makespan chunk partitions
+                    all_speeds = {0: master_spd}
+                    all_speeds.update({wid: spd for wid, (spd, _) in batch.items()})
+
+                    optimal_chunks = compute_optimal_chunks(self.metadata.total_size, all_speeds)
+                    self.metadata.chunks = optimal_chunks
+                    total = self.metadata.total_size
+                    pct_m = (optimal_chunks[0].total_bytes / total) * 100.0
+
+                    # Reply to every waiting worker with its assigned byte boundaries
+                    for wid, wsock in reports.items():
+                        worker_chunk = next((c for c in optimal_chunks if c.chunk_id == wid), None)
+                        try:
+                            if worker_chunk is None:
+                                send_json(wsock, {"status": "ERROR", "reason": "no chunk assigned"})
+                            else:
+                                send_json(wsock, {
+                                    "status": "OK",
+                                    "chunk_id": wid,
+                                    "start_byte": worker_chunk.start_byte,
+                                    "end_byte": worker_chunk.end_byte,
+                                    "total_bytes": worker_chunk.total_bytes,
+                                    "master_pct": pct_m,
+                                    "worker_pct": (worker_chunk.total_bytes / total) * 100.0
+                                })
+                        except OSError as e:
+                            self.log(f"[Auto-Balance] Could not reply to Worker {wid}: {e}")
+                        finally:
+                            wsock.close()
+
+                    split = " | ".join(
+                        f"{'Master' if c.chunk_id == 0 else f'Worker {c.chunk_id}'} {(c.total_bytes / total) * 100.0:.1f}%"
+                        for c in optimal_chunks
+                    )
+
+                    # Update Master GUI dashboard
+                    def _update_master_ui():
+                        self._rebuild_telemetry_grid()
+                        self.role_tip_label.configure(text=f"⚖ Optimal Split: {split}")
+                        self.auto_dist_btn.configure(state="normal", text="⚡ Auto-Balance Chunks")
+                        self.log(f"[Auto-Balance] ✅ Optimal distribution computed! {split}. Ready for download.")
+                        messagebox.showinfo("Auto-Balance Complete",
+                                            "Optimal Heterogeneous Split Calculated!\n\n"
+                                            + "\n".join(
+                                                f"• {'Master' if c.chunk_id == 0 else f'Worker {c.chunk_id}'}: "
+                                                f"{(c.total_bytes / total) * 100.0:.1f}% ({format_bytes(c.total_bytes)})"
+                                                for c in optimal_chunks
+                                            )
+                                            + "\n\nMakespan minimized: all nodes should finish their WAN phase together.")
+                    self.after(0, _update_master_ui)
 
                 self.control_plane_server = ControlPlaneServer(
                     host="0.0.0.0", port=TCP_DISPATCH_PORT,
@@ -963,8 +991,10 @@ class EdgeMeshApp(ctk.CTk):
                 except Exception:
                     chunk_id = 1
 
+                # Master answers only once every Worker has reported, so allow time for peers
                 resp = ControlPlaneClient.report_capacity_and_get_chunk(
-                    target_ip, TCP_DISPATCH_PORT, worker_id=chunk_id, measured_speed=spd, on_log=self.log
+                    target_ip, TCP_DISPATCH_PORT, worker_id=chunk_id, measured_speed=spd,
+                    timeout=60.0, on_log=self.log
                 )
 
                 def _apply_worker_result():
@@ -1001,7 +1031,8 @@ class EdgeMeshApp(ctk.CTk):
                         messagebox.showwarning("Negotiation Notice",
                                                f"Could not negotiate with Master at {target_ip}:{TCP_DISPATCH_PORT}.\n\n"
                                                f"1. Did you click 'Auto-Balance Chunks' on Master first?\n"
-                                               f"2. Is Master connected to the same Hotspot ({target_ip})?")
+                                               f"2. Is Master connected to the same Hotspot ({target_ip})?\n"
+                                               f"3. In a 4-node cluster, did every Worker click 'Auto-Balance' within 60 s?")
 
                 self.after(0, _apply_worker_result)
 
@@ -1391,7 +1422,7 @@ class EdgeMeshApp(ctk.CTk):
         if "Worker" in role:
             self.footer_status.configure(text="✅ Chunk streamed to Master. Click '🔄 New Download' to start another.")
             self.log("🎉 [HPC Engine] Chunk download & Master stream complete!")
-            messagebox.showinfo("Success", f"Your assigned chunk was downloaded and successfully streamed to Master!")
+            messagebox.showinfo("Success", "Your assigned chunk was downloaded and successfully streamed to Master!")
         else:
             self.footer_status.configure(text="✅ Complete. Click '🔄 New Download' to start another.")
             self.log("🎉 [HPC Engine] Download and Zero-Copy assembly complete!")
@@ -1442,7 +1473,7 @@ class EdgeMeshApp(ctk.CTk):
             self.control_plane_server.stop()
             self.control_plane_server = None
         self._master_speed = 0.0
-        self._worker_speeds.clear()
+        self._capacity_barrier.reset()
 
         if self.tcp_server:
             self.tcp_server.stop()
@@ -1516,7 +1547,8 @@ class EdgeMeshApp(ctk.CTk):
             if sys.platform == "win32":
                 subprocess.Popen(['explorer', '/select,', os.path.abspath(self.target_filepath)])
             else:
-                subprocess.Popen(['open', os.path.dirname(self.target_filepath)])
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.Popen([opener, os.path.dirname(self.target_filepath)])
 
 
 # ============================================================================

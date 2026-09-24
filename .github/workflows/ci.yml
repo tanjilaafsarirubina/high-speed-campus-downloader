@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyflakes
+
+      - name: Lint (pyflakes)
+        run: python -m pyflakes engine.py main.py benchmark.py benchmark_suite.py test_qa_suite.py tools/cluster_e2e.py
+
+      - name: Unit & integration tests
+        run: python -m unittest -v test_qa_suite
+
+      - name: CLI benchmark against the local mock server
+        run: python benchmark.py --mock
+
+      - name: GUI smoke test (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: >
+          xvfb-run -a python -c "import main; app = main.EdgeMeshApp();
+          app.cluster_size_var.set('4 Nodes (25% each)'); assert app._get_num_chunks() == 4;
+          app.cluster_size_var.set('2 Nodes (50% each)'); assert app._get_num_chunks() == 2;
+          app.update(); app.destroy(); print('GUI smoke test OK')"
+
+      - name: GUI smoke test (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          python -c "import main; app = main.EdgeMeshApp();
+          app.cluster_size_var.set('4 Nodes (25% each)'); assert app._get_num_chunks() == 4;
+          app.cluster_size_var.set('2 Nodes (50% each)'); assert app._get_num_chunks() == 2;
+          app.update(); app.destroy(); print('GUI smoke test OK')"
+
+  cluster-e2e:
+    name: GUI cluster end-to-end (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Master + Worker processes (2 nodes Auto-Balance, 4 nodes, 4 nodes Auto-Balance)
+        shell: bash
+        run: |
+          run() { if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a python tools/cluster_e2e.py "$@"; else python tools/cluster_e2e.py "$@"; fi; }
+          run --nodes 2 --balance
+          run --nodes 4
+          run --nodes 4 --balance
+
+  benchmarks:
+    name: Benchmark suite (regenerates the README figures)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-bench.txt
+
+      - name: Run benchmark_suite.py
+        run: python benchmark_suite.py
+
+      - name: Upload regenerated figures and results
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-results
+          path: |
+            assets/*.png
+            assets/benchmark_results.json
+            assets/benchmark_summary.csv
